@@ -3,9 +3,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
-#include <thread>
 #include <set>
 #include <stack>
+#include <thread>
 #include <vector>
 
 #include "core/util/include/util.hpp"
@@ -67,7 +67,6 @@ void matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::FindPoint
 
   for (int t = 0; t < num_threads; ++t) {
     threads.emplace_back([t, num_threads, this, &local_points]() {
-
       int start_col = (static_cast<long long>(t) * width_) / num_threads;
       int end_col = (static_cast<long long>(t + 1) * width_) / num_threads;
 
@@ -82,18 +81,16 @@ void matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::FindPoint
     });
   }
 
-  for (auto &th : threads) {
+  for (auto& th : threads) {
     if (th.joinable()) th.join();
   }
 
   size_t total_found = 0;
-  for (const auto &v : local_points) total_found += v.size();
+  for (const auto& v : local_points) total_found += v.size();
   points_.reserve(points_.size() + total_found);
 
   for (auto &v : local_points) {
-    points_.insert(points_.end(),
-                   std::make_move_iterator(v.begin()),
-                   std::make_move_iterator(v.end()));
+    points_.insert(points_.end(), std::make_move_iterator(v.begin()), std::make_move_iterator(v.end()));
   }
 }
 
@@ -141,7 +138,7 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
     for (int t = 0; t < num_threads; ++t) {
       threads.emplace_back([&, t]() {
         size_t start = (static_cast<size_t>(t) * points_.size()) / num_threads;
-        size_t end   = (static_cast<size_t>(t + 1) * points_.size()) / num_threads;
+        size_t end = (static_cast<size_t>(t + 1) * points_.size()) / num_threads;
 
         double bestDist = -1.0;
         Point bestPoint;
@@ -223,7 +220,6 @@ void matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::DeleteDub
 
   output_ = finalHull;
 }
-
 
 bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::PostProcessingImpl() {
   std::sort(output_.begin(), output_.end());
