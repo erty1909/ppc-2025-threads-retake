@@ -89,7 +89,7 @@ void matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::FindPoint
   for (const auto& v : local_points) total_found += v.size();
   points_.reserve(points_.size() + total_found);
 
-  for (auto &v : local_points) {
+  for (auto& v : local_points) {
     points_.insert(points_.end(), std::make_move_iterator(v.begin()), std::make_move_iterator(v.end()));
   }
 }
