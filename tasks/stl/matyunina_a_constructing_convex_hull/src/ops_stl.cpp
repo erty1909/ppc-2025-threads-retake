@@ -1,5 +1,6 @@
 #include "stl/matyunina_a_constructing_convex_hull/include/ops_stl.hpp"
 
+#include <condition_variable>
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
