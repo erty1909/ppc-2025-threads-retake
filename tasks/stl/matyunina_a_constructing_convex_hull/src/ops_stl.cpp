@@ -99,21 +99,21 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
   FindPoints();
 
   if (points_.size() < 3) {
-      output_ = points_;
-      return true;
+    output_ = points_;
+    return true;
   }
 
   Point leftmost = points_[0];
   Point rightmost = points_[0];
 
   for (Point& p : points_) {
-      if (p.x < leftmost.x) leftmost = p;
-      if (p.x > rightmost.x) rightmost = p;
+    if (p.x < leftmost.x) leftmost = p;
+    if (p.x > rightmost.x) rightmost = p;
   }
 
   std::queue<std::pair<Point, Point>> segmentQueue;
   std::set<Point> hullSet;
-  
+
   std::mutex setMutex, queueMutex;
   std::condition_variable queueCV;
   std::atomic<bool> processing{true};
@@ -134,9 +134,7 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
       {
         std::unique_lock<std::mutex> lock(queueMutex);
 
-        queueCV.wait(lock, [&]() {
-          return !processing || !segmentQueue.empty();
-        });
+        queueCV.wait(lock, [&]() { return !processing || !segmentQueue.empty(); });
 
         if (!processing && segmentQueue.empty()) {
           return;
