@@ -99,21 +99,24 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
   FindPoints();
 
   if (points_.size() < 3) {
-    output_ = points_;
-    return true;
+      output_ = points_;
+      return true;
   }
 
   Point leftmost = points_[0];
   Point rightmost = points_[0];
 
   for (Point& p : points_) {
-    if (p.x < leftmost.x) leftmost = p;
-    if (p.x > rightmost.x) rightmost = p;
+      if (p.x < leftmost.x) leftmost = p;
+      if (p.x > rightmost.x) rightmost = p;
   }
 
   std::queue<std::pair<Point, Point>> segmentQueue;
   std::set<Point> hullSet;
+  
   std::mutex setMutex, queueMutex;
+  std::condition_variable queueCV;
+  std::atomic<bool> processing{true};
 
   hullSet.insert(leftmost);
   hullSet.insert(rightmost);
@@ -122,15 +125,23 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
 
   const int num_threads = ppc::util::GetPPCNumThreads();
   std::vector<std::thread> threads;
-  std::atomic<bool> processing{true};
 
   auto processSegment = [&]() {
-    while (processing || !segmentQueue.empty()) {
+    while (true) {
       std::pair<Point, Point> segment;
       bool hasSegment = false;
 
       {
-        std::lock_guard<std::mutex> lock(queueMutex);
+        std::unique_lock<std::mutex> lock(queueMutex);
+
+        queueCV.wait(lock, [&]() {
+          return !processing || !segmentQueue.empty();
+        });
+
+        if (!processing && segmentQueue.empty()) {
+          return;
+        }
+
         if (!segmentQueue.empty()) {
           segment = segmentQueue.front();
           segmentQueue.pop();
@@ -139,7 +150,6 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
       }
 
       if (!hasSegment) {
-        std::this_thread::yield();
         continue;
       }
 
@@ -172,6 +182,8 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
           segmentQueue.push({a, farthestPoint});
           segmentQueue.push({farthestPoint, b});
         }
+
+        queueCV.notify_all();
       }
     }
   };
@@ -180,11 +192,13 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
     threads.emplace_back(processSegment);
   }
 
-  while (!segmentQueue.empty()) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  {
+    std::unique_lock<std::mutex> lock(queueMutex);
+    queueCV.wait(lock, [&]() { return segmentQueue.empty(); });
   }
 
   processing = false;
+  queueCV.notify_all();
 
   for (auto& thread : threads) {
     if (thread.joinable()) {
