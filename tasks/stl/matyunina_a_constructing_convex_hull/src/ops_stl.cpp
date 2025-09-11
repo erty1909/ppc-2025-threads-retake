@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <mutex>
 #include <set>
+#include <queue>
 #include <stack>
 #include <thread>
 #include <vector>
@@ -95,60 +96,105 @@ void matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::FindPoint
 }
 
 bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl() {
-  FindPoints();
+    FindPoints();
 
-  if (points_.size() < 3) {
-    output_ = points_;
-    return true;
-  }
+    if (points_.size() < 3) {
+        output_ = points_;
+        return true;
+    }
 
-  Point leftmost = points_[0];
-  Point rightmost = points_[0];
-
-  for (Point& p : points_) {
-    if (p.x < leftmost.x) leftmost = p;
-    if (p.x > rightmost.x) rightmost = p;
-  }
-
-  std::stack<std::pair<Point, Point>> segmentStack;
-  std::set<Point> hullSet;
-
-  hullSet.insert(leftmost);
-  hullSet.insert(rightmost);
-  segmentStack.push({leftmost, rightmost});
-  segmentStack.push({rightmost, leftmost});
-
-  while (!segmentStack.empty()) {
-    Point a = segmentStack.top().first;
-    Point b = segmentStack.top().second;
-    segmentStack.pop();
-
-    double maxDistance = -1;
-    Point farthestPoint;
-    bool found = false;
+    Point leftmost = points_[0];
+    Point rightmost = points_[0];
 
     for (Point& p : points_) {
-      if (Point::orientation(a, b, p) > 0) {
-        double dist = Point::distanceToLine(a, b, p);
-        if (dist > maxDistance) {
-          maxDistance = dist;
-          farthestPoint = p;
-          found = true;
+        if (p.x < leftmost.x) leftmost = p;
+        if (p.x > rightmost.x) rightmost = p;
+    }
+
+    std::queue<std::pair<Point, Point>> segmentQueue;
+    std::set<Point> hullSet;
+    std::mutex setMutex, queueMutex;
+
+    hullSet.insert(leftmost);
+    hullSet.insert(rightmost);
+    segmentQueue.push({leftmost, rightmost});
+    segmentQueue.push({rightmost, leftmost});
+
+    const int num_threads = ppc::util::GetPPCNumThreads();
+    std::vector<std::thread> threads;
+    std::atomic<bool> processing{true};
+
+    auto processSegment = [&]() {
+      while (processing || !segmentQueue.empty()) {
+        std::pair<Point, Point> segment;
+        bool hasSegment = false;
+
+        {
+          std::lock_guard<std::mutex> lock(queueMutex);
+          if (!segmentQueue.empty()) {
+            segment = segmentQueue.front();
+            segmentQueue.pop();
+            hasSegment = true;
+          }
         }
+
+        if (!hasSegment) {
+          std::this_thread::yield();
+          continue;
+        }
+
+        Point a = segment.first;
+        Point b = segment.second;
+
+        double maxDistance = -1;
+        Point farthestPoint;
+        bool found = false;
+
+        for (Point& p : points_) {
+          if (Point::orientation(a, b, p) > 0) {
+            double dist = Point::distanceToLine(a, b, p);
+            if (dist > maxDistance) {
+              maxDistance = dist;
+              farthestPoint = p;
+              found = true;
+            }
+          }
+        }
+
+        if (found) {
+          {
+            std::lock_guard<std::mutex> lock(setMutex);
+            hullSet.insert(farthestPoint);
+          }
+
+          {
+            std::lock_guard<std::mutex> lock(queueMutex);
+            segmentQueue.push({a, farthestPoint});
+            segmentQueue.push({farthestPoint, b});
+          }
+        }
+      }
+    };
+
+    for (int i = 0; i < num_threads; i++) {
+      threads.emplace_back(processSegment);
+    }
+
+    while (!segmentQueue.empty()) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    processing = false;
+
+    for (auto& thread : threads) {
+      if (thread.joinable()) {
+        thread.join();
       }
     }
 
-    if (found) {
-      hullSet.insert(farthestPoint);
+    DeleteDublecate(hullSet);
 
-      segmentStack.push({a, farthestPoint});
-      segmentStack.push({farthestPoint, b});
-    }
-  }
-
-  DeleteDublecate(hullSet);
-
-  return true;
+    return true;
 }
 
 void matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::DeleteDublecate(std::set<Point>& hullSet) {
