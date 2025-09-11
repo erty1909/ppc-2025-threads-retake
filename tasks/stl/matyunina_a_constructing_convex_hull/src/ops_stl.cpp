@@ -3,10 +3,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <mutex>
 #include <set>
 #include <stack>
 #include <thread>
-#include <mutex>
 #include <vector>
 
 #include "core/util/include/util.hpp"
@@ -104,7 +104,7 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
 
   Point leftmost = points_[0];
   Point rightmost = points_[0];
-  
+
   const int num_threads_extreme = ppc::util::GetPPCNumThreads();
   std::vector<std::thread> threads_extreme;
   std::vector<Point> local_leftmost(num_threads_extreme, points_[0]);
