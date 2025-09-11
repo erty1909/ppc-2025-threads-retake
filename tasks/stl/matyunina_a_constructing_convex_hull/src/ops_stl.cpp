@@ -105,129 +105,44 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
   Point leftmost = points_[0];
   Point rightmost = points_[0];
 
-  const int num_threads_extreme = ppc::util::GetPPCNumThreads();
-  std::vector<std::thread> threads_extreme;
-  std::vector<Point> local_leftmost(num_threads_extreme, points_[0]);
-  std::vector<Point> local_rightmost(num_threads_extreme, points_[0]);
-
-  for (int t = 0; t < num_threads_extreme; ++t) {
-    threads_extreme.emplace_back([&, t]() {
-      size_t start = (static_cast<size_t>(t) * points_.size()) / num_threads_extreme;
-      size_t end = (static_cast<size_t>(t + 1) * points_.size()) / num_threads_extreme;
-
-      Point local_left = points_[start];
-      Point local_right = points_[start];
-
-      for (size_t i = start; i < end; ++i) {
-        if (points_[i].x < local_left.x) local_left = points_[i];
-        if (points_[i].x > local_right.x) local_right = points_[i];
-      }
-
-      local_leftmost[t] = local_left;
-      local_rightmost[t] = local_right;
-    });
-  }
-
-  for (auto& th : threads_extreme) th.join();
-
-  for (int t = 0; t < num_threads_extreme; ++t) {
-    if (local_leftmost[t].x < leftmost.x) leftmost = local_leftmost[t];
-    if (local_rightmost[t].x > rightmost.x) rightmost = local_rightmost[t];
+  for (Point& p : points_) {
+    if (p.x < leftmost.x) leftmost = p;
+    if (p.x > rightmost.x) rightmost = p;
   }
 
   std::stack<std::pair<Point, Point>> segmentStack;
   std::set<Point> hullSet;
-  std::mutex stackMutex;
-  std::mutex setMutex;
 
-  {
-    std::lock_guard<std::mutex> lock(setMutex);
-    hullSet.insert(leftmost);
-    hullSet.insert(rightmost);
-  }
+  hullSet.insert(leftmost);
+  hullSet.insert(rightmost);
+  segmentStack.push({leftmost, rightmost});
+  segmentStack.push({rightmost, leftmost});
 
-  {
-    std::lock_guard<std::mutex> lock(stackMutex);
-    segmentStack.push({leftmost, rightmost});
-    segmentStack.push({rightmost, leftmost});
-  }
+  while (!segmentStack.empty()) {
+    Point a = segmentStack.top().first;
+    Point b = segmentStack.top().second;
+    segmentStack.pop();
 
-  while (true) {
-    std::pair<Point, Point> currentSegment;
-    bool hasWork = false;
-
-    {
-      std::lock_guard<std::mutex> lock(stackMutex);
-      if (!segmentStack.empty()) {
-        currentSegment = segmentStack.top();
-        segmentStack.pop();
-        hasWork = true;
-      }
-    }
-
-    if (!hasWork) break;
-
-    Point a = currentSegment.first;
-    Point b = currentSegment.second;
-
-    double maxDistance = -1.0;
+    double maxDistance = -1;
     Point farthestPoint;
     bool found = false;
-    std::mutex resultMutex;
 
-    const int num_threads = ppc::util::GetPPCNumThreads();
-    std::vector<std::thread> threads;
-    threads.reserve(num_threads);
-
-    for (int t = 0; t < num_threads; ++t) {
-      threads.emplace_back([&, t]() {
-        size_t start = (static_cast<size_t>(t) * points_.size()) / num_threads;
-        size_t end = (static_cast<size_t>(t + 1) * points_.size()) / num_threads;
-
-        double localMaxDist = -1.0;
-        Point localBestPoint;
-        bool localFound = false;
-
-        for (size_t i = start; i < end; ++i) {
-          Point& p = points_[i];
-          if (Point::orientation(a, b, p) > 0) {
-            double dist = Point::distanceToLine(a, b, p);
-            if (dist > localMaxDist) {
-              localMaxDist = dist;
-              localBestPoint = p;
-              localFound = true;
-            }
-          }
+    for (Point& p : points_) {
+      if (Point::orientation(a, b, p) > 0) {
+        double dist = Point::distanceToLine(a, b, p);
+        if (dist > maxDistance) {
+          maxDistance = dist;
+          farthestPoint = p;
+          found = true;
         }
-
-        if (localFound) {
-          std::lock_guard<std::mutex> lock(resultMutex);
-          if (localMaxDist > maxDistance) {
-            maxDistance = localMaxDist;
-            farthestPoint = localBestPoint;
-            found = true;
-          }
-        }
-      });
+      }
     }
 
-    for (auto& th : threads) th.join();
-
     if (found) {
-      bool shouldAdd = false;
-      {
-        std::lock_guard<std::mutex> lock(setMutex);
-        if (hullSet.find(farthestPoint) == hullSet.end()) {
-          hullSet.insert(farthestPoint);
-          shouldAdd = true;
-        }
-      }
+      hullSet.insert(farthestPoint);
 
-      if (shouldAdd) {
-        std::lock_guard<std::mutex> lock(stackMutex);
-        segmentStack.push({a, farthestPoint});
-        segmentStack.push({farthestPoint, b});
-      }
+      segmentStack.push({a, farthestPoint});
+      segmentStack.push({farthestPoint, b});
     }
   }
 
