@@ -10,6 +10,7 @@
 #include <stack>
 #include <thread>
 #include <vector>
+#include <iostream>
 
 #include "core/util/include/util.hpp"
 
@@ -188,6 +189,8 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
       segmentStack.push({global_farthest_point, b});
     }
   }
+
+  std::cout << "\nend\n";
 
   DeleteDublecate(hullSet);
   return true;
