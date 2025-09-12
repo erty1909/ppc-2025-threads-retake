@@ -1,8 +1,8 @@
 #include "stl/matyunina_a_constructing_convex_hull/include/ops_stl.hpp"
 
+#include <condition_variable>
 #include <algorithm>
 #include <cmath>
-#include <condition_variable>
 #include <cstddef>
 #include <mutex>
 #include <queue>
@@ -114,9 +114,7 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
 
   std::queue<std::pair<Point, Point>> segmentQueue;
   std::set<Point> hullSet;
-
   std::mutex setMutex, queueMutex;
-  std::condition_variable queueCV;
   std::atomic<bool> processing{true};
 
   hullSet.insert(leftmost);
@@ -126,29 +124,30 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
 
   const int num_threads = ppc::util::GetPPCNumThreads();
   std::vector<std::thread> threads;
+  std::atomic<int> active_threads{0};
 
-  auto processSegment = [&]() {
-    while (true) {
+  auto processFunction = [&]() {
+    while (processing) {
       std::pair<Point, Point> segment;
-      bool hasSegment = false;
+      bool has_segment = false;
 
       {
-        std::unique_lock<std::mutex> lock(queueMutex);
-
-        queueCV.wait(lock, [&]() { return !processing || !segmentQueue.empty(); });
-
-        if (!processing && segmentQueue.empty()) {
-          return;
-        }
-
+        std::lock_guard<std::mutex> lock(queueMutex);
         if (!segmentQueue.empty()) {
           segment = segmentQueue.front();
           segmentQueue.pop();
-          hasSegment = true;
+          has_segment = true;
+          active_threads++;
         }
       }
 
-      if (!hasSegment) {
+      if (!has_segment) {
+        std::this_thread::sleep_for(std::chrono::microseconds(10));
+
+        std::lock_guard<std::mutex> lock(queueMutex);
+        if (segmentQueue.empty() && active_threads == 0) {
+          break;
+        }
         continue;
       }
 
@@ -181,23 +180,28 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
           segmentQueue.push({a, farthestPoint});
           segmentQueue.push({farthestPoint, b});
         }
+      }
 
-        queueCV.notify_all();
+      {
+        std::lock_guard<std::mutex> lock(queueMutex);
+        active_threads--;
       }
     }
   };
 
   for (int i = 0; i < num_threads; i++) {
-    threads.emplace_back(processSegment);
+    threads.emplace_back(processFunction);
   }
 
-  {
-    std::unique_lock<std::mutex> lock(queueMutex);
-    queueCV.wait(lock, [&]() { return segmentQueue.empty(); });
+  while (true) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    
+    std::lock_guard<std::mutex> lock(queueMutex);
+    if (segmentQueue.empty() && active_threads == 0) {
+      processing = false;
+      break;
+    }
   }
-
-  processing = false;
-  queueCV.notify_all();
 
   for (auto& thread : threads) {
     if (thread.joinable()) {
