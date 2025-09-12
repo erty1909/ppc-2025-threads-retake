@@ -99,7 +99,7 @@ void matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::FindPoint
 bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl() {
   FindPoints();
 
-  if (points_.size() < 3) {
+if (points_.size() < 3) {
     output_ = points_;
     return true;
   }
@@ -112,103 +112,42 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
     if (p.x > rightmost.x) rightmost = p;
   }
 
-  std::queue<std::pair<Point, Point>> segmentQueue;
+  std::stack<std::pair<Point, Point>> segmentStack;
   std::set<Point> hullSet;
-  std::mutex setMutex, queueMutex;
-  std::atomic<bool> processing{true};
 
   hullSet.insert(leftmost);
   hullSet.insert(rightmost);
-  segmentQueue.push({leftmost, rightmost});
-  segmentQueue.push({rightmost, leftmost});
+  segmentStack.push({leftmost, rightmost});
+  segmentStack.push({rightmost, leftmost});
 
-  const int num_threads = ppc::util::GetPPCNumThreads();
-  std::vector<std::thread> threads;
-  std::atomic<int> active_threads{0};
+  while (!segmentStack.empty()) {
+    Point a = segmentStack.top().first;
+    Point b = segmentStack.top().second;
+    segmentStack.pop();
 
-  auto processFunction = [&]() {
-    while (processing) {
-      std::pair<Point, Point> segment;
-      bool has_segment = false;
+    double maxDistance = -1;
+    Point farthestPoint;
+    bool found = false;
 
-      {
-        std::lock_guard<std::mutex> lock(queueMutex);
-        if (!segmentQueue.empty()) {
-          segment = segmentQueue.front();
-          segmentQueue.pop();
-          has_segment = true;
-          active_threads++;
+    for (Point& p : points_) {
+      if (Point::orientation(a, b, p) > 0) {
+        double dist = Point::distanceToLine(a, b, p);
+        if (dist > maxDistance) {
+          maxDistance = dist;
+          farthestPoint = p;
+          found = true;
         }
-      }
-
-      if (!has_segment) {
-        std::this_thread::sleep_for(std::chrono::microseconds(10));
-
-        std::lock_guard<std::mutex> lock(queueMutex);
-        if (segmentQueue.empty() && active_threads == 0) {
-          break;
-        }
-        continue;
-      }
-
-      Point a = segment.first;
-      Point b = segment.second;
-
-      double maxDistance = -1;
-      Point farthestPoint;
-      bool found = false;
-
-      for (Point& p : points_) {
-        if (Point::orientation(a, b, p) > 0) {
-          double dist = Point::distanceToLine(a, b, p);
-          if (dist > maxDistance) {
-            maxDistance = dist;
-            farthestPoint = p;
-            found = true;
-          }
-        }
-      }
-
-      if (found) {
-        {
-          std::lock_guard<std::mutex> lock(setMutex);
-          hullSet.insert(farthestPoint);
-        }
-
-        {
-          std::lock_guard<std::mutex> lock(queueMutex);
-          segmentQueue.push({a, farthestPoint});
-          segmentQueue.push({farthestPoint, b});
-        }
-      }
-
-      {
-        std::lock_guard<std::mutex> lock(queueMutex);
-        active_threads--;
       }
     }
-  };
 
-  for (int i = 0; i < num_threads; i++) {
-    threads.emplace_back(processFunction);
-  }
+    if (found) {
+      hullSet.insert(farthestPoint);
 
-  while (true) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-
-    std::lock_guard<std::mutex> lock(queueMutex);
-    if (segmentQueue.empty() && active_threads == 0) {
-      processing = false;
-      break;
+      segmentStack.push({a, farthestPoint});
+      segmentStack.push({farthestPoint, b});
     }
   }
-
-  for (auto& thread : threads) {
-    if (thread.joinable()) {
-      thread.join();
-    }
-  }
-
+  
   DeleteDublecate(hullSet);
 
   return true;
