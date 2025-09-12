@@ -20,11 +20,11 @@ bool matyunina_a_constructing_convex_hull_stl::Point::operator==(const Point& ot
   return x == other.x && y == other.y;
 }
 
-int matyunina_a_constructing_convex_hull_stl::Point::orientation(Point& a, Point& b, Point& c) {
+int matyunina_a_constructing_convex_hull_stl::Point::orientation(const Point& a, const Point& b, const Point& c) {
   return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
 }
 
-double matyunina_a_constructing_convex_hull_stl::Point::distanceToLine(Point& a, Point& b, Point& c) {
+double matyunina_a_constructing_convex_hull_stl::Point::distanceToLine(const Point& a, const Point& b, const Point& c) {
   return std::abs(orientation(a, b, c));
 }
 
@@ -122,44 +122,53 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
 
   const int num_threads = ppc::util::GetPPCNumThreads();
 
+  std::vector<std::thread> threads;
+  threads.reserve(num_threads);
+
+  struct ThreadResult {
+    double max_distance = -1;
+    Point farthest_point;
+    bool found = false;
+    char padding[64];
+  };
+  std::vector<ThreadResult> thread_results(num_threads);
+
   while (!segmentStack.empty()) {
     Point a = segmentStack.top().first;
     Point b = segmentStack.top().second;
     segmentStack.pop();
 
-    struct ThreadResult {
-      double max_distance = -1;
-      Point farthest_point;
-      bool found = false;
-    };
-    std::vector<ThreadResult> thread_results(num_threads);
-    std::vector<std::thread> threads;
+    for (auto& result : thread_results) {
+      result = ThreadResult();
+    }
 
     for (int i = 0; i < num_threads; i++) {
       threads.emplace_back([&, i, a, b]() {
         size_t start = (i * points_.size()) / num_threads;
         size_t end = ((i + 1) * points_.size()) / num_threads;
 
+        ThreadResult local_result;
+        
         for (size_t j = start; j < end; j++) {
           Point& p = points_[j];
-
-          Point temp_a = a;
-          Point temp_b = b;
-          if (Point::orientation(temp_a, temp_b, p) > 0) {
-            double dist = Point::distanceToLine(temp_a, temp_b, p);
-            if (dist > thread_results[i].max_distance) {
-              thread_results[i].max_distance = dist;
-              thread_results[i].farthest_point = p;
-              thread_results[i].found = true;
+          if (Point::orientation(a, b, p) > 0) {
+            double dist = Point::distanceToLine(a, b, p);
+            if (dist > local_result.max_distance) {
+              local_result.max_distance = dist;
+              local_result.farthest_point = p;
+              local_result.found = true;
             }
           }
         }
+        
+        thread_results[i] = local_result;
       });
     }
 
     for (auto& thread : threads) {
       thread.join();
     }
+    threads.clear();
 
     double global_max_distance = -1;
     Point global_farthest_point;
@@ -181,7 +190,6 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
   }
 
   DeleteDublecate(hullSet);
-
   return true;
 }
 

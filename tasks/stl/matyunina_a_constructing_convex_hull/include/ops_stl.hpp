@@ -13,8 +13,8 @@ struct Point {
   Point(int x = 0, int y = 0) : x(x), y(y) {}
   bool operator<(const Point& other) const;
   bool operator==(const Point& other) const;
-  static int orientation(Point& a, Point& b, Point& c);
-  static double distanceToLine(Point& a, Point& b, Point& c);
+  static int orientation(const Point& a, const Point& b, const Point& c);
+  static double distanceToLine(const Point& a, const Point& b, const Point& c);
   static double distance(const Point& p1, const Point& p2);
 };
 
