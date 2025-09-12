@@ -4,7 +4,6 @@
 #include <cmath>
 #include <condition_variable>
 #include <cstddef>
-#include <iostream>
 #include <mutex>
 #include <queue>
 #include <set>
@@ -100,7 +99,7 @@ void matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::FindPoint
 bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl() {
   FindPoints();
 
-  if (points_.size() < 3) {
+ if (points_.size() < 3) {
     output_ = points_;
     return true;
   }
@@ -121,76 +120,33 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
   segmentStack.push({leftmost, rightmost});
   segmentStack.push({rightmost, leftmost});
 
-  const int num_threads = ppc::util::GetPPCNumThreads();
-
-  std::vector<std::thread> threads;
-  threads.reserve(num_threads);
-
-  struct ThreadResult {
-    double max_distance = -1;
-    Point farthest_point;
-    bool found = false;
-    char padding[64];
-  };
-  std::vector<ThreadResult> thread_results(num_threads);
-
   while (!segmentStack.empty()) {
     Point a = segmentStack.top().first;
     Point b = segmentStack.top().second;
     segmentStack.pop();
 
-    for (auto& result : thread_results) {
-      result = ThreadResult();
-    }
+    double maxDistance = -1;
+    Point farthestPoint;
+    bool found = false;
 
-    for (int i = 0; i < num_threads; i++) {
-      threads.emplace_back([&, i, a, b]() {
-        size_t start = (i * points_.size()) / num_threads;
-        size_t end = ((i + 1) * points_.size()) / num_threads;
-
-        ThreadResult local_result;
-
-        for (size_t j = start; j < end; j++) {
-          Point& p = points_[j];
-          if (Point::orientation(a, b, p) > 0) {
-            double dist = Point::distanceToLine(a, b, p);
-            if (dist > local_result.max_distance) {
-              local_result.max_distance = dist;
-              local_result.farthest_point = p;
-              local_result.found = true;
-            }
-          }
+    for (Point& p : points_) {
+      if (Point::orientation(a, b, p) > 0) {
+        double dist = Point::distanceToLine(a, b, p);
+        if (dist > maxDistance) {
+          maxDistance = dist;
+          farthestPoint = p;
+          found = true;
         }
-
-        thread_results[i] = local_result;
-      });
-    }
-
-    for (auto& thread : threads) {
-      thread.join();
-    }
-    threads.clear();
-
-    double global_max_distance = -1;
-    Point global_farthest_point;
-    bool global_found = false;
-
-    for (const auto& result : thread_results) {
-      if (result.found && result.max_distance > global_max_distance) {
-        global_max_distance = result.max_distance;
-        global_farthest_point = result.farthest_point;
-        global_found = true;
       }
     }
 
-    if (global_found) {
-      hullSet.insert(global_farthest_point);
-      segmentStack.push({a, global_farthest_point});
-      segmentStack.push({global_farthest_point, b});
+    if (found) {
+      hullSet.insert(farthestPoint);
+
+      segmentStack.push({a, farthestPoint});
+      segmentStack.push({farthestPoint, b});
     }
   }
-
-  std::cout << "\nend\n";
 
   DeleteDublecate(hullSet);
   return true;
