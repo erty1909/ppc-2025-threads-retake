@@ -120,31 +120,71 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
   segmentStack.push({leftmost, rightmost});
   segmentStack.push({rightmost, leftmost});
 
+  const int num_threads = ppc::util::GetPPCNumThreads();
+  
   while (!segmentStack.empty()) {
     Point a = segmentStack.top().first;
     Point b = segmentStack.top().second;
     segmentStack.pop();
 
-    double maxDistance = -1;
-    Point farthestPoint;
-    bool found = false;
+    std::vector<std::vector<Point>> thread_points(num_threads);
+    size_t points_per_thread = points_.size() / num_threads;
+    
+    for (int i = 0; i < num_threads; i++) {
+      size_t start = i * points_per_thread;
+      size_t end = (i == num_threads - 1) ? points_.size() : (i + 1) * points_per_thread;
+      thread_points[i] = std::vector<Point>(points_.begin() + start, points_.begin() + end);
+    }
 
-    for (Point& p : points_) {
-      if (Point::orientation(a, b, p) > 0) {
-        double dist = Point::distanceToLine(a, b, p);
-        if (dist > maxDistance) {
-          maxDistance = dist;
-          farthestPoint = p;
-          found = true;
+    std::vector<double> thread_max_distances(num_threads, -1);
+    std::vector<Point> thread_farthest_points(num_threads);
+    std::vector<bool> thread_found(num_threads, false);
+
+    std::vector<std::thread> threads;
+    
+    for (int i = 0; i < num_threads; i++) {
+      threads.emplace_back([&, i]() {
+        double local_max_distance = -1;
+        Point local_farthest_point;
+        bool local_found = false;
+
+        for (Point& p : thread_points[i]) {
+          if (Point::orientation(a, b, p) > 0) {
+            double dist = Point::distanceToLine(a, b, p);
+            if (dist > local_max_distance) {
+              local_max_distance = dist;
+              local_farthest_point = p;
+              local_found = true;
+            }
+          }
         }
+
+        thread_max_distances[i] = local_max_distance;
+        thread_farthest_points[i] = local_farthest_point;
+        thread_found[i] = local_found;
+      });
+    }
+
+    for (auto& thread : threads) {
+      thread.join();
+    }
+
+    double global_max_distance = -1;
+    Point global_farthest_point;
+    bool global_found = false;
+
+    for (int i = 0; i < num_threads; i++) {
+      if (thread_found[i] && thread_max_distances[i] > global_max_distance) {
+        global_max_distance = thread_max_distances[i];
+        global_farthest_point = thread_farthest_points[i];
+        global_found = true;
       }
     }
 
-    if (found) {
-      hullSet.insert(farthestPoint);
-
-      segmentStack.push({a, farthestPoint});
-      segmentStack.push({farthestPoint, b});
+    if (global_found) {
+      hullSet.insert(global_farthest_point);
+      segmentStack.push({a, global_farthest_point});
+      segmentStack.push({global_farthest_point, b});
     }
   }
 
