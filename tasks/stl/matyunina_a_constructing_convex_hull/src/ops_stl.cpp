@@ -141,7 +141,7 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
     for (int i = 0; i < num_threads; i++) {
       size_t start = i * chunk_size;
       size_t end = (i == num_threads - 1) ? points_.size() : (i + 1) * chunk_size;
-      
+
       threads.emplace_back([&, i, start, end, a, b]() {
         double local_max_distance = -1;
         Point local_farthest_point;
