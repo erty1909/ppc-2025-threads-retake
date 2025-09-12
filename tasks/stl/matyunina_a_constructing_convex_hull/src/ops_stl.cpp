@@ -121,7 +121,7 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
   segmentStack.push({rightmost, leftmost});
 
   const int num_threads = ppc::util::GetPPCNumThreads();
-  
+
   while (!segmentStack.empty()) {
     Point a = segmentStack.top().first;
     Point b = segmentStack.top().second;
@@ -139,7 +139,7 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
       threads.emplace_back([&, i, a, b]() {
         size_t start = (i * points_.size()) / num_threads;
         size_t end = ((i + 1) * points_.size()) / num_threads;
-        
+
         for (size_t j = start; j < end; j++) {
           Point& p = points_[j];
 
