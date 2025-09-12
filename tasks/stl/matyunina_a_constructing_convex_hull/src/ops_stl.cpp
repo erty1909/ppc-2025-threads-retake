@@ -1,8 +1,8 @@
 #include "stl/matyunina_a_constructing_convex_hull/include/ops_stl.hpp"
 
-#include <condition_variable>
 #include <algorithm>
 #include <cmath>
+#include <condition_variable>
 #include <cstddef>
 #include <mutex>
 #include <queue>
@@ -195,7 +195,7 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
 
   while (true) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    
+
     std::lock_guard<std::mutex> lock(queueMutex);
     if (segmentQueue.empty() && active_threads == 0) {
       processing = false;
