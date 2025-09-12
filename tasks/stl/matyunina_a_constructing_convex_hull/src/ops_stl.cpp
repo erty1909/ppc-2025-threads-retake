@@ -121,7 +121,7 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
   segmentStack.push({rightmost, leftmost});
 
   const int num_threads = ppc::util::GetPPCNumThreads();
-  
+
   while (!segmentStack.empty()) {
     Point a = segmentStack.top().first;
     Point b = segmentStack.top().second;
@@ -129,7 +129,7 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
 
     std::vector<std::vector<Point>> thread_points(num_threads);
     size_t points_per_thread = points_.size() / num_threads;
-    
+
     for (int i = 0; i < num_threads; i++) {
       size_t start = i * points_per_thread;
       size_t end = (i == num_threads - 1) ? points_.size() : (i + 1) * points_per_thread;
@@ -141,7 +141,7 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
     std::vector<bool> thread_found(num_threads, false);
 
     std::vector<std::thread> threads;
-    
+
     for (int i = 0; i < num_threads; i++) {
       threads.emplace_back([&, i]() {
         double local_max_distance = -1;
