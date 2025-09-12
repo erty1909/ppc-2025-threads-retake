@@ -99,7 +99,7 @@ void matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::FindPoint
 bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl() {
   FindPoints();
 
- if (points_.size() < 3) {
+  if (points_.size() < 3) {
     output_ = points_;
     return true;
   }
