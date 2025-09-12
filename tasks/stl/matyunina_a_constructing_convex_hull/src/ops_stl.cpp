@@ -148,7 +148,7 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
         size_t end = ((i + 1) * points_.size()) / num_threads;
 
         ThreadResult local_result;
-        
+
         for (size_t j = start; j < end; j++) {
           Point& p = points_[j];
           if (Point::orientation(a, b, p) > 0) {
@@ -160,7 +160,7 @@ bool matyunina_a_constructing_convex_hull_stl::ConstructingConvexHull::RunImpl()
             }
           }
         }
-        
+
         thread_results[i] = local_result;
       });
     }
